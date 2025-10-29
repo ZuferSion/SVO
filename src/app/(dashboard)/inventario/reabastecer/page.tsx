@@ -18,6 +18,7 @@ export default function RestockPage() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
 
   const handleRestock = (product: Product) => {
+    
     setSelectedProduct(product)
     setIsFormOpen(true)
   }
@@ -169,10 +170,10 @@ export default function RestockPage() {
 
       {/* Restock Form */}
       <RestockForm
+        preselectedProduct={selectedProduct}
         isOpen={isFormOpen}
         onClose={handleCloseForm}
         onSuccess={handleSuccess}
-        preselectedProduct={selectedProduct}
       />
     </div>
   )

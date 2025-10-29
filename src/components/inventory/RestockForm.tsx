@@ -25,15 +25,16 @@ interface FormData {
 }
 
 export function RestockForm({
+  preselectedProduct,
   isOpen,
   onClose,
   onSuccess,
-  preselectedProduct,
 }: RestockFormProps) {
   const { user } = useAuthStore()
   const [products, setProducts] = useState<Product[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [loadingProducts, setLoadingProducts] = useState(false)
 
   const {
     register,
@@ -51,14 +52,10 @@ export function RestockForm({
 
   const watchedProductId = watch('product_id')
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchProducts()
-    }
-  }, [isOpen])
+  
 
   useEffect(() => {
-    if (preselectedProduct) {
+    if (preselectedProduct && products.length > 0) {
       setSelectedProduct(preselectedProduct)
       reset({
         product_id: preselectedProduct.id,
@@ -66,7 +63,8 @@ export function RestockForm({
         reason: '',
       })
     }
-  }, [preselectedProduct, reset])
+  }, [preselectedProduct, products, reset])
+
 
   useEffect(() => {
     const product = products.find((p) => p.id === watchedProductId)
@@ -74,6 +72,7 @@ export function RestockForm({
   }, [watchedProductId, products])
 
   const fetchProducts = async () => {
+    setLoadingProducts(true)
     const supabase = createClient()
     const { data } = await supabase
       .from('products')
@@ -82,6 +81,7 @@ export function RestockForm({
       .order('name')
 
     setProducts(data || [])
+    setLoadingProducts(false)
   }
 
   const onSubmit = async (data: FormData) => {
@@ -149,6 +149,12 @@ export function RestockForm({
     })),
   ]
 
+  useEffect(() => {
+    if (isOpen) {
+      fetchProducts()
+    }
+  }, [isOpen])
+
   return (
     <Modal
       isOpen={isOpen}
@@ -156,82 +162,89 @@ export function RestockForm({
       title="Reabastecer Inventario"
       size="md"
     >
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <Select
-          label="Producto *"
-          options={productOptions}
-          error={errors.product_id?.message}
-          disabled={!!preselectedProduct}
-          {...register('product_id', {
-            required: 'Selecciona un producto',
-          })}
-        />
+      {loadingProducts ? (
+        <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+          <div className="animate-spin h-6 w-6 border-2 border-slate-400 border-t-transparent rounded-full mb-3"></div>
+          Cargando productos...
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <Select
+            label="Producto *"
+            options={productOptions}
+            error={errors.product_id?.message}
+            disabled={!!preselectedProduct}
+            {...register('product_id', {
+              required: 'Selecciona un producto',
+            })}
+          />
 
-        {selectedProduct && (
-          <div className="bg-slate-50 p-4 rounded-lg">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-slate-600 mb-1">Stock Actual</p>
-                <p className="text-2xl font-bold text-slate-900">
-                  {selectedProduct.stock_quantity}
-                </p>
-              </div>
-              <div>
-                <p className="text-slate-600 mb-1">Stock Mínimo</p>
-                <p className="text-2xl font-bold text-slate-600">
-                  {selectedProduct.min_stock_alert}
-                </p>
+          {selectedProduct && (
+            <div className="bg-slate-50 p-4 rounded-lg">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-slate-600 mb-1">Stock Actual</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {selectedProduct.stock_quantity}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-slate-600 mb-1">Stock Mínimo</p>
+                  <p className="text-2xl font-bold text-slate-600">
+                    {selectedProduct.min_stock_alert}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <Input
-          label="Cantidad a Agregar *"
-          type="number"
-          placeholder="0"
-          error={errors.quantity?.message}
-          {...register('quantity', {
-            required: 'La cantidad es requerida',
-            min: { value: 1, message: 'La cantidad debe ser mayor a 0' },
-          })}
-        />
-
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
-            Motivo (opcional)
-          </label>
-          <textarea
-            className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            rows={3}
-            placeholder="Ej: Compra de proveedor, ajuste de inventario..."
-            {...register('reason')}
+          <Input
+            label="Cantidad a Agregar *"
+            type="number"
+            placeholder="0"
+            error={errors.quantity?.message}
+            {...register('quantity', {
+              required: 'La cantidad es requerida',
+              min: { value: 1, message: 'La cantidad debe ser mayor a 0' },
+            })}
           />
-        </div>
 
-        {selectedProduct && watch('quantity') && (
-          <div className="bg-primary-50 p-4 rounded-lg">
-            <p className="text-sm text-slate-600 mb-1">Nuevo Stock</p>
-            <p className="text-3xl font-bold text-primary-600">
-              {selectedProduct.stock_quantity + parseInt(watch('quantity') || '0')}
-            </p>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Motivo (opcional)
+            </label>
+            <textarea
+              className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              rows={3}
+              placeholder="Ej: Compra de proveedor, ajuste de inventario..."
+              {...register('reason')}
+            />
           </div>
-        )}
 
-        <div className="flex gap-3 justify-end pt-4 border-t">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleClose}
-            disabled={loading}
-          >
-            Cancelar
-          </Button>
-          <Button type="submit" loading={loading} disabled={loading}>
-            Reabastecer
-          </Button>
-        </div>
-      </form>
+          {selectedProduct && watch('quantity') && (
+            <div className="bg-primary-50 p-4 rounded-lg">
+              <p className="text-sm text-slate-600 mb-1">Nuevo Stock</p>
+              <p className="text-3xl font-bold text-primary-600">
+                {selectedProduct.stock_quantity + parseInt(watch('quantity') || '0')}
+              </p>
+            </div>
+          )}
+
+          <div className="flex gap-3 justify-end pt-4 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClose}
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" loading={loading} disabled={loading}>
+              Reabastecer
+            </Button>
+          </div>
+        </form>
+      )}
     </Modal>
   )
 }
